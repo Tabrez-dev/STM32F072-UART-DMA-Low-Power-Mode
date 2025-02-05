@@ -3,6 +3,31 @@
 ## **Overview**
 This project demonstrates a **bare-metal implementation** of **UART communication using DMA (Direct Memory Access)** on an **STM32F072** microcontroller. The goal is to achieve efficient, **non-blocking** transmission and reception of data over UART without CPU intervention during data transfer.
 
+
+You can add a section in your README that links to your other UART-based projects like this:
+
+---
+
+## Other UART-based Projects
+
+Here are some related projects I have worked on, which implement UART communication using different approaches and techniques:
+
+1. **[STM32 UART Interrupt-Based Driver](https://github.com/Tabrez-dev/STM32-UART-Interrupt-Based-Driver)**: This project demonstrates how to implement UART communication using interrupts on STM32 microcontrollers.
+
+2. **[STM32 Printf UART Redirection Using CMSIS (Cortex-M0)](https://github.com/Tabrez-dev/STM32-Printf-UART-Redirection-Using-CMSIS-Cortex-M0)**: A project that shows how to use CMSIS for redirection of `printf` output to UART for debugging on STM32 Cortex-M0 microcontrollers.
+
+3. **[Baremetal Printf to UART](https://github.com/Tabrez-dev/Baremetal-Printf-to-UART)**: This project explains how to implement `printf` redirection to UART in a bare-metal environment without using any libraries.
+
+4. **[STM32 Baremetal UART Device Driver from Scratch](https://github.com/Tabrez-dev/STM32-Baremetal-UART-Device-Driver-from-Scratch)**: A bare-metal UART driver implementation for STM32 from scratch, focusing on low-level hardware access and driver development.
+
+--- 
+
+This will provide visibility for your other projects and help demonstrate your in-depth experience with UART on STM32.
+
+
+
+
+
 ✅ **Key Features:**
 - **Bare-metal implementation** (no HAL, no libraries)
 - **DMA-based one-byte UART transmission & reception**
