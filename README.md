@@ -22,12 +22,6 @@ Here are some related projects I have worked on, which implement UART communicat
 
 --- 
 
-This will provide visibility for your other projects and help demonstrate your in-depth experience with UART on STM32.
-
-
-
-
-
 ✅ **Key Features:**
 - **Bare-metal implementation** (no HAL, no libraries)
 - **DMA-based one-byte UART transmission & reception**
