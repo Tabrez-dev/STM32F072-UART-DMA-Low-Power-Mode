@@ -3,9 +3,6 @@
 ## **Overview**
 This project demonstrates a **bare-metal implementation** of **UART communication using DMA (Direct Memory Access)** on an **STM32F072** microcontroller. The goal is to achieve efficient, **non-blocking** transmission and reception of data over UART without CPU intervention during data transfer.
 
-
-You can add a section in your README that links to your other UART-based projects like this:
-
 ---
 
 ## Other UART-based Projects
