@@ -1,145 +1,179 @@
+# **STM32 UART with DMA (Bare-Metal Implementation)**
 
-# STM32-UART-Interrupt-Based-Driver
+## **Overview**
+This project demonstrates a **bare-metal implementation** of **UART communication using DMA (Direct Memory Access)** on an **STM32F072** microcontroller. The goal is to achieve efficient, **non-blocking** transmission and reception of data over UART without CPU intervention during data transfer.
 
-This repository implements a UART device driver for STM32F072RBT6-DISCO using interrupt-based methods for both transmit (TX) and receive (RX) operations. The driver is optimized using circular buffers to manage data efficiently and prevent data loss. It focuses on performance and reliability, making it suitable for embedded systems that require UART communication.
+✅ **Key Features:**
+- **Bare-metal implementation** (no HAL, no libraries)
+- **DMA-based one-byte UART transmission & reception**
+- **Interrupt-driven approach** (efficient CPU usage)
+- **Minimal RAM footprint** (no large buffers)
+- **Non-blocking TX & RX** using **DMA transfer complete (TC) flags**
+- **Supports STM32F072RBT6 and similar Cortex-M0 MCUs**
 
-<details>
-  <summary><h2>Features</h2></summary>
-  
-- **Interrupt-based UART communication** for both TX and RX.
-- **Circular buffer management** for efficient handling of data, reducing overhead and preventing buffer overflow.
-- **GPIO initialization for Alternate Function (AF) mode** to configure UART pins (TX/RX).
-- Configurable baud rate and other UART settings.
-- **Modular structure** with clear separation of concerns:
-  - `hal.c` and `hal.h`: Low-level hardware abstraction layer for STM32 peripherals.
-  - `uart.c` and `uart.h`: UART-specific driver functions.
-  - `main.c`: Application logic for managing UART communication.
-  
-</details>
+---
 
-<details>
-  <summary><h2>Technical Details</h2></summary>
+## **Why Use DMA for UART?**
+Using **DMA (Direct Memory Access)** with UART eliminates the need for polling or interrupt-driven data handling, reducing CPU load and ensuring efficient data transfer.
 
-### Circular Buffers for RX and TX
+| **Method**       | **CPU Overhead** | **Latency** | **Efficiency** | **Best Use Case** |
+|------------------|-----------------|-------------|---------------|----------------|
+| **Polling**       | High            | High        | ❌ Inefficient  | Simple applications |
+| **Interrupts**    | Medium          | Low         | ✅ Efficient    | General-purpose use |
+| **DMA**          | Very Low        | Very Low    | ✅✅ **Highly Efficient** | High-speed transfers |
 
-In this project, we use **circular buffers** to manage the RX and TX data. Circular buffers are efficient data structures that allow for the continuous storage and retrieval of data in a fixed-size buffer without the need for resizing or shifting data. 
+---
 
-#### **RX Buffer**
-The RX buffer stores incoming UART data that is received through interrupts. When the `RXNE` (Receive Not Empty) interrupt occurs, the received byte is placed in the buffer at the position pointed by `rxHead`. The `rxTail` pointer tracks the location of the oldest unread byte. 
+## **Implementation Details**
+### **1️⃣ UART Initialization (`uartInit`)**
+- Configures **TX and RX GPIO pins** as **alternate function**
+- Enables **USART1 peripheral clock**
+- Sets the **baud rate**
+- Enables **DMA mode for TX & RX**
+- Configures **DMA1 Channel 2** (TX) and **DMA1 Channel 3** (RX)
+- Enables **DMA interrupts** in NVIC
 
-I ensure that the buffer does not overflow by checking the position of `rxHead` and `rxTail` before writing to the buffer. If the buffer is full, I discard the new data to prevent overwriting. This approach ensures that the system remains responsive and prevents data loss under high data rate conditions.
+```c
+void uartInit(USART_TypeDef *uart, unsigned long baud) {
+    RCC->APB2ENR |= BIT(14);  // Enable USART1 clock
+    RCC->AHBENR |= BIT(0);    // Enable DMA1 clock
 
-#### **TX Buffer**
-Similarly, the TX buffer stores outgoing UART data that will be transmitted. Data is written to the buffer at the position pointed by `txHead`, and `txTail` points to the oldest byte that is ready for transmission. The `TXE` (Transmit Empty) interrupt is used to trigger the sending of data when the UART is ready for the next byte.
+    // Enable DMA mode in USART1 (DMAT for TX, DMAR for RX)
+    uart->CR3 |= BIT(7) | BIT(6);
 
-### Advantages of Interrupt-based Communication
-
-The **interrupt-based approach** provides several advantages:
-- **Reduced CPU Usage**: Interrupts allow the CPU to perform other tasks until data is available or the UART is ready for transmission. This is more efficient than polling, where the CPU continuously checks for the status.
-- **Low Latency**: The interrupt handler is triggered immediately when data is received or when the UART is ready to transmit. This minimizes the delay between receiving and processing data.
-- **Scalability**: The interrupt-driven approach scales well for high-speed data communication as it doesn't require constant polling, freeing up CPU time for other operations.
-
-By using interrupts for both RX and TX, we ensure that data is handled efficiently without wasting CPU cycles or introducing unnecessary delays.
-
-Here’s the updated section for **GPIO Initialization for AF Mode** based on your code:
-
-
-### GPIO Initialization for AF Mode
-
-The UART communication relies on specific GPIO pins configured for **Alternate Function (AF) mode**. The following steps are taken to initialize the GPIO registers for UART functionality:
-
-1. **Enable GPIO Clock**: The clock for the GPIO port must be enabled. For UART1, this is done by setting the appropriate bit in the `RCC->AHB1ENR` register. The function `gpio_set_mode` ensures that the GPIO clock for the corresponding pin is enabled and its mode is set to the required mode for UART. Specifically, the `RCC->AHBENR |= BIT(17 + PINBANK(pin));` line enables the GPIO clock for the specified pin bank.
-
-2. **Set GPIO Pin to Alternate Function Mode**: The function `gpioSetAF` configures the GPIO pin to the correct alternate function mode required for UART. It writes the appropriate Alternate Function (AF) number to the GPIO's AFR (Alternate Function Register). Depending on whether the pin number is less than 8 or greater than or equal to 8, the corresponding half of the `AFR` register is modified to select the correct AF function. This allows the UART signal to be routed through the selected pin.
-
-![image](https://github.com/user-attachments/assets/8b1593e6-a257-43dd-aa51-d1f31501fb63)
-
-PA9 and PA10 were used in AF1 mode according to the mapping provided in this document: https://www.st.com/resource/en/datasheet/stm32f072rb.pdf
-
-### UART Initialization
-
-The `uartInit` function configures the UART peripheral with the necessary settings for communication. The following steps outline the process of initializing the UART:
-
-1. **Enable UART Clock**: The clock for the selected UART peripheral is enabled by modifying the `RCC->APB2ENR` register. In this case, for UART1, the appropriate bit is set to enable the clock.
-
-2. **Set GPIO Pins for TX/RX**: The TX (Transmit) and RX (Receive) pins are determined based on the selected UART. For UART1, these are pins PA9 (TX) and PA10 (RX). The `gpio_set_mode` function is used to configure these pins for Alternate Function (AF) mode. Additionally, the `gpioSetAF` function assigns the correct alternate function to the pins, allowing them to function as UART TX and RX.
-
-3. **Configure UART Settings**: The UART configuration is set up in the `CR1` register of the selected UART. First, the register is cleared to ensure a known state. The baud rate is configured by setting the `BRR` (Baud Rate Register) to a value based on the system clock frequency and the desired baud rate.
-
-4. **Enable UART**: The UART transmission and reception are enabled by setting the appropriate bits in the `CR1` register. Specifically, the `RE` (Receiver Enable) and `TE` (Transmitter Enable) bits are set to allow data reception and transmission. 
-
-5. **Enable RXNE Interrupt**: The `RXNE` (Receive Not Empty) interrupt is enabled by setting the corresponding bit in the `CR1` register. This triggers an interrupt whenever new data is received on the UART.
-
-6. **Enable UART Interrupt in NVIC**: The interrupt service routine for UART1 is enabled in the NVIC (Nested Vectored Interrupt Controller). This ensures that the appropriate interrupt handler will be called when an interrupt occurs (e.g., when data is received).
-
-This process configures the UART for communication, ensuring that the TX and RX pins are properly set for alternate function mode and that the UART interrupts are enabled for efficient data transfer.
-
-</details>
-
-<details>
-  <summary><h2>How to build and run</h2></summary>
-
-1. **Install Prerequisites**: Ensure that you have the necessary tools installed for ARM development. This includes `arm-none-eabi-gcc`, `make`, and other related tools.
-
-2. **Build the Project**:
-    To compile and generate the firmware, run the following command:
-    ```bash
-    make build
-    ```
-
-
-3. **Flash the Firmware**: Use a suitable programmer, such as **ST-Link** or **J-Link**, and the respective tool to flash the firmware onto your STM32 microcontroller. Make sure you have **ST-LINk** or **J-LINK** Utility installed on your device.
-
-    - For **ST-Link**, use:
-        ```bash
-        make stflash
-        ```
-
-    - For **J-Link**, use:
-        ```bash
-        make jflash
-        ```
-
-5. **Monitor the Output**: After flashing the firmware, use a serial terminal program like **Minicom** to view the UART output from your STM32 microcontroller.
-
-The data is transimitted to the terminal after recieving 5 bytes of data.
-
-![Screenshot from 2025-02-02 07-03-27](https://github.com/user-attachments/assets/b8a8370e-8512-4191-8d7f-6b12c11c4488)
-
-</details>
-
-<details>
-  <summary><h2>Makefile Details</h2></summary>
-  
-- **CFLAGS**: This sets the compiler flags for the build. It includes optimization settings, warning flags, debugging options, and include paths.
-  
-- **LDFLAGS**: This specifies the linker flags. It includes the linker script, the library options, and optimization for unused sections.
-
-- **Build Targets**:
-  - `build`: This target is used to build the firmware from the source files.
-  - `firmware.bin`: Converts the compiled ELF file into a binary file (`firmware.bin`) that can be flashed to the STM32.
-  - `firmware.elf`: The output ELF file generated by the build process.
-
-- **Flashing**:
-  - **stflash**: Flash the firmware using **ST-Link** and reset the microcontroller.
-  - **jflash**: Flash the firmware using **J-Link**. The flashing process is controlled by a J-Link script file (`jflash.script`).
-
-### Additional Information:
-
-- **`cmsis_core`**: The CMSIS core files are fetched from the ARM repository.
-- **`cmsis_f0`**: The CMSIS device files for STM32F0 series are fetched from the STM32 repository.
-
-### Clean Project:
-
-To clean up all generated files (such as ELF, binary, and script files), run:
-```bash
-make clean
+    // Setup DMA1_Channel3 (RX) to receive one byte
+    DMA1_Channel3->CPAR = (uint32_t)&UART1->RDR;
+    DMA1_Channel3->CMAR = (uint32_t)&rxByte;
+    DMA1_Channel3->CNDTR = 1;
+    DMA1_Channel3->CCR = BIT(1);  // Enable Transfer Complete Interrupt
+    DMA1_Channel3->CCR |= BIT(0); // Enable DMA Channel 3
+}
 ```
-</details>
 
-<details>
-  <summary><h2>DIY</h2></summary>
-  
-To use `printf` for UART output instead of directly writing data byte-by-byte, you can modify the `syscalls.c` file to implement the `_write` function. This function is called by the standard library when `printf` is used. In the provided code, the `_write` function is configured to call `uartWriteBuf` to transmit data. If you wish to use `printf`, simply ensure that the `syscalls.c` file is properly included in your project, and `uartWriteBuf` is correctly implemented to send data over UART. By doing this, you can use the standard `printf` function for formatted output, which will internally call your UART driver to transmit the data over UART.
-  
-</details>
+---
+
+### **2️⃣ DMA-Based UART Transmission (`uartStartTxDMA`)**
+- Waits for the previous transfer to complete
+- Loads **txByte** with data
+- Configures **DMA1 Channel 2** for TX
+- Starts the transfer
+
+```c
+void uartStartTxDMA(uint8_t data) {
+    while (!txDone && (DMA1_Channel2->CCR & BIT(0))); // Wait for previous TX
+    txByte = data;  // Store new byte
+
+    // Setup DMA Channel 2 (TX)
+    DMA1_Channel2->CPAR = (uint32_t)&UART1->TDR;
+    DMA1_Channel2->CMAR = (uint32_t)&txByte;
+    DMA1_Channel2->CNDTR = 1;
+    DMA1_Channel2->CCR = BIT(4) | BIT(1);  // Enable memory-to-peripheral mode + TCIE
+    DMA1_Channel2->CCR |= BIT(0); // Start DMA transfer
+}
+```
+
+---
+
+### **3️⃣ DMA Interrupt Handler (`DMA1_Channel2_3_IRQHandler`)**
+Handles **both TX and RX DMA transfer completion:**
+- **TX Complete:** Clears `txDone` flag
+- **RX Complete:** Clears `rxDone` flag, prepares next reception
+
+```c
+void DMA1_Channel2_3_IRQHandler(void) {
+    if (DMA1->ISR & BIT(5)) {  // TX Complete
+        DMA1->IFCR |= BIT(5);  // Clear flag
+        txDone = true;
+    }
+
+    if (DMA1->ISR & BIT(9)) {  // RX Complete
+        DMA1->IFCR |= BIT(9);  // Clear flag
+        rxDone = true;
+
+        // Re-enable RX DMA for next byte
+        DMA1_Channel3->CCR &= ~BIT(0);
+        DMA1_Channel3->CNDTR = 1;
+        DMA1_Channel3->CCR |= BIT(0);
+    }
+}
+```
+
+---
+
+## **Hardware Connections**
+| **STM32 Pin** | **Function** | **UART Signal** |
+|--------------|------------|----------------|
+| PA9          | TX         | USART1_TX      |
+| PA10         | RX         | USART1_RX      |
+
+✅ **DMA Channels Used:**
+- **Channel 2 → USART1 TX**
+- **Channel 3 → USART1 RX**
+
+  ![image](https://github.com/user-attachments/assets/9c17358e-e1a1-4546-a760-bbf4086706e9)
+
+From rm0091 reference manual it is observerd that USART1 TX is mapped to channel 2 and USART1 RX is mapped to channel 3
+
+![image](https://github.com/user-attachments/assets/94ecf7b0-2cdb-4589-b5bb-e50df1075f12)
+
+From SYSCFG configuration register 1 (SYSCFG_CFGR1) we see that we can remap USART1 TX RX to different channels but we will use it in default state.(channel 2 and 3).
+
+![image](https://github.com/user-attachments/assets/57bf429e-a92b-47cc-a1cd-b3d119bc6141)
+
+#### **DMA Block Diagram Explanation for STM32F072RBT6**  
+
+The **Direct Memory Access (DMA) controller** in the **STM32F072RBT6** is designed to transfer data between peripherals (e.g., USART, SPI, ADC) and memory **without CPU intervention**. This reduces CPU load, improves performance, and enables real-time data handling.  
+
+The **DMA block diagram** consists of:  
+- **DMA Controller (DMA1)**, which has **seven independent channels**, each capable of handling different peripheral requests.  
+- Each **DMA channel** connects to a specific peripheral (e.g., Channel 2 for USART1_TX, Channel 3 for USART1_RX).  
+- The **DMA request multiplexer** routes peripheral requests to the appropriate DMA channel.  
+- The **DMA controller includes a priority system**, allowing high-priority transfers to preempt lower-priority ones.  
+- Once a transfer completes, the **DMA interrupt flag is set**, triggering the **NVIC** (Nested Vectored Interrupt Controller) to notify the CPU, enabling efficient event-driven processing.  
+
+By configuring **memory-to-peripheral (TX) and peripheral-to-memory (RX) transfers**, the STM32F0 DMA module enables **low-latency, non-blocking communication**, making it ideal for applications such as **UART DMA-driven data streaming**.
+
+---
+
+## **Demo: How to Use**
+1️⃣ **Flash the firmware**
+```sh
+make jflash or make stflash
+```
+
+2️⃣ **Open Minicom (or any serial terminal)**
+```sh
+minicom -b 115200 -D /dev/ttyUSB0
+```
+
+3️⃣ **Send a byte, and see it echoed back!**
+```
+User Input  → 'A'
+Response    → 'A'
+```
+
+---
+
+## **Technical Highlights**
+✔️ **Zero CPU overhead** (only IRQs execute briefly)  
+✔️ **DMA transfer completion flags prevent buffer overflows**  
+✔️ **Efficient single-byte handling (ideal for command-based protocols)**  
+✔️ **No while-loops blocking execution** (non-blocking approach)  
+✔️ **Optimized for minimal power consumption**  
+
+---
+
+## **Potential Enhancements**
+🔹 **Support for variable-length packets** (not just single bytes)  
+🔹 **Add circular DMA mode for continuous reception**  
+🔹 **Implement a ring buffer for TX & RX**  
+🔹 **Use FreeRTOS for multitasking (if required)**  
+
+---
+
+## **Conclusion**
+This **bare-metal DMA-based UART implementation** is a highly efficient way to handle UART communication on STM32F0 MCUs. The use of **DMA with TX & RX interrupts** ensures **non-blocking, low-latency** operation, making it ideal for real-time applications.
+
+🚀 **Want to Contribute?** Open a Pull Request or raise an Issue!  
+📧 **Questions?** Contact me via GitHub Discussions.
+
