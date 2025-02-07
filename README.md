@@ -20,7 +20,7 @@ Here are some related projects I have worked on, which implement UART communicat
 --- 
 
 ✅ **Key Features:**
-- **Bare-metal implementation** (no HAL, no libraries)
+- **Bare-metal implementation** (no HAL, but used CMSIS library)
 - **DMA-based one-byte UART transmission & reception**
 - **Interrupt-driven approach** (efficient CPU usage)
 - **Minimal RAM footprint** (no large buffers)
