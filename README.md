@@ -17,6 +17,8 @@ Here are some related projects I have worked on, which implement UART communicat
 
 4. **[STM32 Baremetal UART Device Driver from Scratch](https://github.com/Tabrez-dev/STM32-Baremetal-UART-Device-Driver-from-Scratch)**: A bare-metal UART driver implementation for STM32 from scratch, focusing on low-level hardware access and driver development.
 
+5. **[STM32 UART Flashing](https://github.com/Tabrez-dev/STM32-UART-Flashing)**: This project demonstrates how to flash firmware to an STM32 microcontroller via UART using the built-in bootloader and `stm32flash`.  
+
 --- 
 
 ✅ **Key Features:**
