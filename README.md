@@ -25,72 +25,36 @@ This program echoes bytes from keyboard to board and back to a serial monitor
 
 What happens when you send a charcater from the keyboard?
 
-[Start]
-   ↓
-[UART Initialized with DMA]
-   ↓
-[DMA RX Channel 3 Configured]
-   ├── CPAR = UART1->RDR  (Peripheral: UART RX Register)
-   ├── CMAR = &rxByte  (Memory: Variable to store data)
-   ├── CNDTR = 1  (Transfer 1 byte)
-   ├── Enable Transfer Complete Interrupt (TCIE)
-   ├── Enable DMA RX Channel
-   ↓
-[Waiting for Data from PC]
-   ↓ (PC Sends a Character)
-[UART Receives Character in RDR Register]
-   ↓ (DMA Automatically Moves Byte)
-[DMA Transfers Byte to rxByte in Memory]
-   ↓
-[DMA Triggers Transfer Complete Interrupt]
-   ↓
-[Jump to DMA1_Channel2_3_IRQHandler()]
-   ├── Clear RX Transfer Complete Flag
-   ├── Set rxDone = true  (Indicates Data is Available)
-   ├── Restart DMA RX Channel for Next Byte
-   ├── CNDTR Reset to 1
-   ├── Enable DMA RX Channel
-   ↓
-[Main Loop Detects uartDataAvailable()]
-   ├── Reads rxByte
-   ├── Clears rxDone Flag
-   ↓
-[Character is Ready for Processing (e.g., Echo)]
-   ↓
-[End]
+## UART Character Reception Flow (PC → Board)
 
-What happens when the charcater is echoes back to the PC?
+| Step | Action | Details |
+|------|--------|---------|
+| 1 | Start | |
+| 2 | UART Initialized with DMA | |
+| 3 | DMA RX Channel 3 Configured | - CPAR = UART1->RDR (Peripheral: UART RX Register)<br>- CMAR = &rxByte (Memory: Variable to store data)<br>- CNDTR = 1 (Transfer 1 byte)<br>- Enable Transfer Complete Interrupt (TCIE)<br>- Enable DMA RX Channel |
+| 4 | Waiting for Data from PC | |
+| 5 | UART Receives Character | PC Sends a Character → UART RDR Register |
+| 6 | DMA Transfers Byte | DMA Automatically Moves Byte from UART RDR to rxByte in Memory |
+| 7 | DMA Triggers Interrupt | Transfer Complete Interrupt Triggered |
+| 8 | Interrupt Handler | - Jump to DMA1_Channel2_3_IRQHandler()<br>- Clear RX Transfer Complete Flag<br>- Set rxDone = true (Indicates Data is Available)<br>- Restart DMA RX Channel for Next Byte<br>- CNDTR Reset to 1<br>- Enable DMA RX Channel |
+| 9 | Main Loop Processing | - Detects uartDataAvailable()<br>- Reads rxByte<br>- Clears rxDone Flag |
+| 10 | Character Processing | Character is Ready for Processing (e.g., Echo) |
+| 11 | End | |
 
-[Start]
-   ↓
-[Main Loop Detects uartDataAvailable()]
-   ├── Calls uartRead()
-   ├── Retrieves rxByte
-   ├── Clears rxDone Flag
-   ↓
-[Call uartStartTxDMA(rxByte)]
-   ├── Waits for Previous TX Transfer to Complete
-   ├── Stores Byte in txByte
-   ├── Configures DMA TX Channel 2:
-   │   ├── CPAR = UART1->TDR (Peripheral: UART TX Register)
-   │   ├── CMAR = &txByte (Memory: Variable to Send)
-   │   ├── CNDTR = 1 (Transfer 1 byte)
-   │   ├── Sets Direction = Memory to Peripheral
-   │   ├── Enables Transfer Complete Interrupt (TCIE)
-   │   ├── Enables DMA TX Channel
-   ↓
-[DMA Transfers txByte to UART1->TDR]
-   ↓
-[DMA Triggers Transfer Complete Interrupt]
-   ↓
-[Jump to DMA1_Channel2_3_IRQHandler()]
-   ├── Clears TX Transfer Complete Flag
-   ├── Sets txDone = true  (Indicates TX is Complete)
-   ↓
-[Character is Sent to PC Successfully]
-   ↓
-[End]
 
+## UART Character Echo Flow (Board → PC)
+
+| Step | Action | Details |
+|------|--------|---------|
+| 1 | Start | |
+| 2 | Main Loop Processing | - Detects uartDataAvailable()<br>- Calls uartRead()<br>- Retrieves rxByte<br>- Clears rxDone Flag |
+| 3 | Call uartStartTxDMA(rxByte) | - Waits for Previous TX Transfer to Complete<br>- Stores Byte in txByte |
+| 4 | DMA TX Channel 2 Configuration | - CPAR = UART1->TDR (Peripheral: UART TX Register)<br>- CMAR = &txByte (Memory: Variable to Send)<br>- CNDTR = 1 (Transfer 1 byte)<br>- Sets Direction = Memory to Peripheral<br>- Enables Transfer Complete Interrupt (TCIE)<br>- Enables DMA TX Channel |
+| 5 | DMA Transfer | DMA Transfers txByte to UART1->TDR |
+| 6 | DMA Triggers Interrupt | Transfer Complete Interrupt Triggered |
+| 7 | Interrupt Handler | - Jump to DMA1_Channel2_3_IRQHandler()<br>- Clears TX Transfer Complete Flag<br>- Sets txDone = true (Indicates TX is Complete) |
+| 8 | Character Sent | Character is Sent to PC Successfully |
+| 9 | End | |
 
 
 --- 
