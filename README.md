@@ -19,6 +19,80 @@ Here are some related projects I have worked on, which implement UART communicat
 
 5. **[STM32 UART Flashing](https://github.com/Tabrez-dev/STM32-UART-Flashing)**: This project demonstrates how to flash firmware to an STM32 microcontroller via UART using the built-in bootloader and `stm32flash`.  
 
+## **Flowchart of code execution**
+
+This program echoes bytes from keyboard to board and back to a serial monitor
+
+What happens when you send a charcater from the keyboard?
+
+[Start]
+   ↓
+[UART Initialized with DMA]
+   ↓
+[DMA RX Channel 3 Configured]
+   ├── CPAR = UART1->RDR  (Peripheral: UART RX Register)
+   ├── CMAR = &rxByte  (Memory: Variable to store data)
+   ├── CNDTR = 1  (Transfer 1 byte)
+   ├── Enable Transfer Complete Interrupt (TCIE)
+   ├── Enable DMA RX Channel
+   ↓
+[Waiting for Data from PC]
+   ↓ (PC Sends a Character)
+[UART Receives Character in RDR Register]
+   ↓ (DMA Automatically Moves Byte)
+[DMA Transfers Byte to rxByte in Memory]
+   ↓
+[DMA Triggers Transfer Complete Interrupt]
+   ↓
+[Jump to DMA1_Channel2_3_IRQHandler()]
+   ├── Clear RX Transfer Complete Flag
+   ├── Set rxDone = true  (Indicates Data is Available)
+   ├── Restart DMA RX Channel for Next Byte
+   ├── CNDTR Reset to 1
+   ├── Enable DMA RX Channel
+   ↓
+[Main Loop Detects uartDataAvailable()]
+   ├── Reads rxByte
+   ├── Clears rxDone Flag
+   ↓
+[Character is Ready for Processing (e.g., Echo)]
+   ↓
+[End]
+
+What happens when the charcater is echoes back to the PC?
+
+[Start]
+   ↓
+[Main Loop Detects uartDataAvailable()]
+   ├── Calls uartRead()
+   ├── Retrieves rxByte
+   ├── Clears rxDone Flag
+   ↓
+[Call uartStartTxDMA(rxByte)]
+   ├── Waits for Previous TX Transfer to Complete
+   ├── Stores Byte in txByte
+   ├── Configures DMA TX Channel 2:
+   │   ├── CPAR = UART1->TDR (Peripheral: UART TX Register)
+   │   ├── CMAR = &txByte (Memory: Variable to Send)
+   │   ├── CNDTR = 1 (Transfer 1 byte)
+   │   ├── Sets Direction = Memory to Peripheral
+   │   ├── Enables Transfer Complete Interrupt (TCIE)
+   │   ├── Enables DMA TX Channel
+   ↓
+[DMA Transfers txByte to UART1->TDR]
+   ↓
+[DMA Triggers Transfer Complete Interrupt]
+   ↓
+[Jump to DMA1_Channel2_3_IRQHandler()]
+   ├── Clears TX Transfer Complete Flag
+   ├── Sets txDone = true  (Indicates TX is Complete)
+   ↓
+[Character is Sent to PC Successfully]
+   ↓
+[End]
+
+
+
 --- 
 
 ✅ **Key Features:**
