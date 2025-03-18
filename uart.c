@@ -1,19 +1,14 @@
 #include "hal.h"
 #include "uart.h"
-
-// One-byte variables for TX and RX
-volatile uint8_t txByte;  // TX data storage
-volatile uint8_t rxByte;  // RX data storage
-
-// Flags to signal completion of DMA transfers
-volatile bool txDone=false;
-volatile bool rxDone=false;
+// Buffer for RX and TX
+volatile uint8_t rxBuffer = 0;
+volatile uint8_t txBuffer = 0;
 
 /*
    Initialize UART and DMA for one-byte transfers.
    We configure both TX and RX DMA channels in normal (non-circular) mode.
  */
-void uartInit(USART_TypeDef *uart, unsigned long baud) {
+void USART1_Init(USART_TypeDef *uart, unsigned long baud) {
 	(void)uart;  // For this example, we assume UART1 is used.
 	uint8_t af=1;
 	uint16_t rxPin=0,txPin=0;
@@ -35,92 +30,72 @@ void uartInit(USART_TypeDef *uart, unsigned long baud) {
 	uart->BRR = FREQ / baud;
 	uart->CR1 |= BIT(0) | BIT(2) | BIT(3);
 
-	//1. Enable DMA mode in USART (DMAT for TX and DMAR for RX)
+	//Enable DMA mode in USART (DMAT for TX and DMAR for RX)
 	uart->CR3 |= BIT(7) | BIT(6);
-
-	//2. Enable DMA clock (assuming DMA1 is enabled at RCC->AHBENR BIT(0))
-	RCC->AHBENR |= BIT(0);
-
-	//3. Enable NVIC for DMA1 Channel2_3 interrupt
-	NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
-
-	//4. --- Configure RX DMA (Channel 3) in Normal Mode ---
-	// Disable Channel 3 before configuration
-	DMA1_Channel3->CCR &= ~BIT(0);
-	//5. Set peripheral address (UART1 RDR) and memory address (&rxByte)
-	DMA1_Channel3->CPAR = (uint32_t)&UART1->RDR;
-	DMA1_Channel3->CMAR = (uint32_t)&rxByte;
-	//6. Set number of data items to transfer = 1
-	DMA1_Channel3->CNDTR = 1;
-	//7. Configure Channel 3: enable Transfer Complete Interrupt (TCIE).
-	// Do NOT enable CIRC mode.
-	DMA1_Channel3->CCR = BIT(1);  // TCIE only; MINC is optional for 1 byte.
-				      //8. Enable DMA Channel 3
-	DMA1_Channel3->CCR |= BIT(0);
+        NVIC_SetPriority(USART1_IRQn, 2);  // Lower priority (higher number)
+        NVIC_EnableIRQ(USART1_IRQn);
 }
 
-/*
-   Start a TX DMA transfer to send one byte.
-   This function loads the data into txByte and configures DMA Channel 2.
- */
-void uartStartTxDMA(uint8_t data) {
-	// Wait until any previous TX transfer is complete
-	while (!txDone && (DMA1_Channel2->CCR & BIT(0)));
-	txDone = false;  // Clear flag
+void DMA_Init(void) {
+    // 1. Enable the DMA1 peripheral clock
+    RCC->AHBENR |= BIT(0);
+    // 2. Configure RX DMA (Channel 3)
+    DMA1_Channel3->CCR &= ~BIT(0);  // Disable channel before configuration
+    // 3. Set peripheral address (USART1 RDR) and memory address (&rxByte)
+    DMA1_Channel3->CPAR = (uint32_t)&UART1->RDR;
+    DMA1_Channel3->CMAR = (uint32_t)&rxBuffer;
+DMA1_Channel3->CCR &= ~((uint32_t)((0x3 << 8) | (0x3 << 10)));  // Clear PSIZE and MSIZE fields for RX DMA
+DMA1_Channel3->CCR &= ~BIT(7);         // Disable MINC (memory increment)
+// 4. Set number of data items to transfer = 1
+    DMA1_Channel3->CNDTR = 1;
+    // 5. Configure DMA Channel 3: Circular mode, transfer complete interrupt, memory increment
+    DMA1_Channel3->CCR |= ~BIT(4) | BIT(1); // DIR=0(read from peripheral),TCIE
 
-	// Load data into txByte
-	txByte = data;
 
-	//1. Disable DMA Channel 2 before configuration
-	DMA1_Channel2->CCR &= ~BIT(0);
-	//2. Set peripheral address (UART1 TDR) and memory address (&txByte)
-	DMA1_Channel2->CPAR=(uint32_t)&UART1->TDR;
-	DMA1_Channel2->CMAR=(uint32_t)&txByte;
-	//3. Set the number of data items to transfer = 1
-	DMA1_Channel2->CNDTR=1;
-	//4. Configure Channel 2: set direction (memory-to-peripheral) and enable TCIE.
-	//5. MINC is not needed for a single byte.
-	DMA1_Channel2->CCR = BIT(4) | BIT(1);  // DIR and TCIE
-	//6. Enable DMA Channel 2
-	DMA1_Channel2->CCR |= BIT(0);
-}
 
-/*
-   Returns true if a new RX byte has been received.
- */
-bool uartDataAvailable(void) {
-	return rxDone;
-}
+    // 6. Configure TX DMA (Channel 2)
+    DMA1_Channel2->CCR &= ~BIT(0);  // Disable channel before configuration
+    // 7. Set peripheral address (USART1 TDR) and memory address (&txByte)
+    DMA1_Channel2->CPAR = (uint32_t)&UART1->TDR;
+    DMA1_Channel2->CMAR = (uint32_t)&txBuffer;
+    // 8. Set the number of data items to transfer = 1
+    DMA1_Channel2->CNDTR = 1;
+    
+DMA1_Channel2->CCR &= ~((uint32_t)((0x3 << 8) | (0x3 << 10)));  // Clear PSIZE and MSIZE fields for TX DMA
+DMA1_Channel2->CCR &= ~BIT(7);         // Disable MINC (memory increment)
+// 9. Configure DMA Channel 2: Memory-to-peripheral, transfer complete interrupt
+    //    Note: Memory increment (MINC) is not needed for a single byte transfer.
+    DMA1_Channel2->CCR = BIT(4) | BIT(1);  // DIR and TCIE
 
-/*
-   Reads the received byte and clears the rxDone flag.
- */
-uint8_t uartRead(void) {
-	rxDone=false;
-	return rxByte;
+    // 10. Enable DMA1 Channel 2/3 interrupt in NVIC
+    NVIC_SetPriority(DMA1_Channel2_3_IRQn, 1);  // Higher priority (lower number)
+    NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
 }
 
 /*
    DMA1_Channel2_3 IRQ Handler handles both TX (Channel 2) and RX (Channel 3).
  */
+// DMA1 Channel 2/3 interrupt handler
 void DMA1_Channel2_3_IRQHandler(void) {
-	// --- Handle TX DMA (Channel 2) ---
-	// TCIF2 flag for Channel 2 is BIT 5
-	if (DMA1->ISR & BIT(5)) {
-		DMA1->IFCR |= BIT(5);  // Clear TX transfer complete flag
-		txDone = true;         // Mark TX as done
-	}
+    if (DMA1->ISR & BIT(9)) { // TCIF3 (RX complete)
+        DMA1->IFCR = BIT(9); // Clear TCIF3
+        txBuffer = rxBuffer; // Echo the character
 
-	// --- Handle RX DMA (Channel 3) ---
-	// TCIF3 flag for Channel 3 is BIT(9)
-	if (DMA1->ISR & BIT(9)) {
-		DMA1->IFCR |= BIT(9);  // Clear RX transfer complete flag
-		rxDone = true;         // A new byte has been received
+        // Start TX DMA
+        DMA1_Channel2->CNDTR=1; // 1 byte to transmit
+        DMA1_Channel2->CCR |= BIT(0);// Enable TX DMA
+    }
+    if (DMA1->ISR & BIT(5)) { // TCIF2 (TX complete)
+        DMA1->IFCR = BIT(5); // Clear TCIF2
+        DMA1_Channel2->CCR &= ~BIT(0); // Disable TX DMA
+        
+    }
+}
 
-		// Reconfigure RX DMA for the next one-byte transfer.
-		DMA1_Channel3->CCR &= ~BIT(0);  // Disable Channel 3
-		DMA1_Channel3->CNDTR = 1;         // Reset transfer count to 1
-		DMA1_Channel3->CCR |= BIT(0);     // Re-enable Channel 3
-	}
+// USART1 interrupt handler (for errors)
+void USART1_IRQHandler(void) {
+    if (USART1->ISR & BIT(3)) { // ORE (overrun error)
+        USART1->ICR |= BIT(3); // Clear ORE flag
+    }
 }
 

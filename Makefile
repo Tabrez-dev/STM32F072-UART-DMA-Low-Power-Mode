@@ -1,6 +1,6 @@
 
 CFLAGS  ?=  -W -Wall -Wextra -Werror -Wundef -Wshadow -Wdouble-promotion \
-            -Wformat-truncation -fno-common -Wconversion \
+            -fno-common -Wconversion \
             -g3 -Os -ffunction-sections -fdata-sections \
 	    -I. -Iinclude -I$(PWD)/cmsis_core/CMSIS/Core/Include -I$(PWD)/cmsis_f0/Include \
             -mcpu=cortex-m0 -mthumb -mfloat-abi=soft $(EXTRA_CFLAGS) 

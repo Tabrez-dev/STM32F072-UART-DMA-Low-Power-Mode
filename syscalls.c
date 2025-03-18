@@ -56,13 +56,9 @@ int _getpid(void) {
 
 int _write(int fd, char *ptr, int len) {
 	(void)fd;
-	if(fd==1){
-		for (int i = 0; i < len; i++) {
-			uartStartTxDMA((uint8_t)ptr[i]);
-			while (!txDone);
-		}
-	}
-	return len;
+        (void)ptr;	
+        (void)len;
+        return -1;
 }
 
 int _read(int fd, char *ptr, int len) {
