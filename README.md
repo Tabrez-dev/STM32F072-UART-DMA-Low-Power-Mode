@@ -5,6 +5,26 @@ This project implements a **fully interrupt-driven UART DMA communication** on t
 
 The implementation follows **bare-metal programming principles** using the **CMSIS** library for direct hardware control without relying on external HAL libraries.  
 
+![image](https://github.com/user-attachments/assets/4eea3317-51b0-45d7-be2d-3f0a10f48457)
+
+## Key Press Event Sequence in STM32F072RBT6 (UART with DMA)
+
+This table describes the precise sequence of events when a key is pressed on a keyboard, transmitted via UART to the STM32F072RBT6, and displayed on the Minicom terminal.
+
+| Step | Event | Description |
+|------|-------|------------|
+| **1** | Key Pressed | The user presses a key on the keyboard, generating a scan code. |
+| **2** | Host OS Processes Key | The host OS converts the scan code into an ASCII character and sends it via UART. |
+| **3** | UART1 RX DMA Receives Data | The STM32F072RBT6's DMA (Channel 3) transfers the received byte from the UART1 RDR (Receive Data Register) to `rxBuffer` in RAM. |
+| **4** | DMA RX Transfer Complete | The DMA triggers a Transfer Complete Interrupt (TCIF3), signaling data reception. |
+| **5** | Echo Character Preparation | The DMA1_Channel2_3 IRQ handler copies `rxBuffer` to `txBuffer` for immediate echo. |
+| **6** | UART1 TX DMA Starts Transmission | The TX DMA (Channel 2) is enabled to send `txBuffer` to UART1 TDR (Transmit Data Register). |
+| **7** | DMA TX Transfer Complete | The DMA triggers TCIF2, signaling transmission completion. The TX DMA is then disabled until the next transmission. |
+| **8** | Character Displayed on Minicom | The host receives the UART transmission and Minicom displays the character. |
+| **9** | CPU Stays in Low-Power Mode | The STM32 enters low-power mode (`wfi` instruction) until the next UART interrupt, reducing CPU overhead. |
+
+This DMA-driven UART communication ensures minimal CPU intervention, allowing the STM32 to operate efficiently while staying in low-power mode until an external event (key press) wakes it up.
+
 ---
 
 ## **Technical Highlights**  
