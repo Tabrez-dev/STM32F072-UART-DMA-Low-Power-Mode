@@ -80,4 +80,4 @@ In the main function, I have implemented an infinite loop that continuously exec
 - **Buffering for multi-byte messages** instead of single-byte transactions.  
 ---
 
-This README presents your project in a professional and structured manner, highlighting the technical decisions that demonstrate **industry best practices, efficiency, and robustness**. 🚀
+
