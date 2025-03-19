@@ -1,4 +1,3 @@
-## **stm32f072-uart-dma-low-power-mode**  
 ### **Efficient and Low-Power UART Communication with DMA on STM32F072**  
 
 ### **Overview**  
