@@ -74,7 +74,6 @@ I have configured the microcontroller to automatically enter Sleep mode upon exi
 
 In the main function, I have implemented an infinite loop that continuously executes the `WFI` (Wait For Interrupt) instruction. The `WFI` instruction places the CPU into Sleep mode until an interrupt occurs. This design ensures that the microcontroller remains in a low-power state during idle periods, waking up only to handle interrupts. Such a strategy is particularly beneficial in applications where the CPU is not required to run continuously, leading to significant energy savings.
 
-By integrating these techniques, my implementation demonstrates a sophisticated approach to power management, leveraging the STM32F072RBT6's low-power capabilities to enhance energy efficiency.
 ---
 
 ## **Future Improvements**  
