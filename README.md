@@ -1,235 +1,85 @@
-# **STM32 UART with DMA (Bare-Metal Implementation)**
+## **stm32f072-uart-dma-low-power-mode**  
+### **Efficient and Low-Power UART Communication with DMA on STM32F072**  
 
-## **Overview**
-This project demonstrates a **bare-metal implementation** of **UART communication using DMA (Direct Memory Access)** on an **STM32F072** microcontroller. The goal is to achieve efficient, **non-blocking** transmission and reception of data over UART without CPU intervention during data transfer.
+### **Overview**  
+This project implements a **fully interrupt-driven UART DMA communication** on the STM32F072RBT6 Discovery board, ensuring minimal CPU intervention and optimized power efficiency. Unlike traditional polling or blocking UART methods, this approach leverages **Direct Memory Access (DMA)** to handle both transmission (TX) and reception (RX), reducing CPU load and allowing the microcontroller to operate in a **low-power mode (Sleep-on-Exit).**  
 
----
-
-## Other UART-based Projects
-
-Here are some related projects I have worked on, which implement UART communication using different approaches and techniques:
-
-1. **[STM32 UART Interrupt-Based Driver](https://github.com/Tabrez-dev/STM32-UART-Interrupt-Based-Driver)**: This project demonstrates how to implement UART communication using interrupts on STM32 microcontrollers.
-
-2. **[STM32 Printf UART Redirection Using CMSIS (Cortex-M0)](https://github.com/Tabrez-dev/STM32-Printf-UART-Redirection-Using-CMSIS-Cortex-M0)**: A project that shows how to use CMSIS for redirection of `printf` output to UART for debugging on STM32 Cortex-M0 microcontrollers.
-
-3. **[Baremetal Printf to UART](https://github.com/Tabrez-dev/Baremetal-Printf-to-UART)**: This project explains how to implement `printf` redirection to UART in a bare-metal environment without using any libraries.
-
-4. **[STM32 Baremetal UART Device Driver from Scratch](https://github.com/Tabrez-dev/STM32-Baremetal-UART-Device-Driver-from-Scratch)**: A bare-metal UART driver implementation for STM32 from scratch, focusing on low-level hardware access and driver development.
-
-5. **[STM32 UART Flashing](https://github.com/Tabrez-dev/STM32-UART-Flashing)**: This project demonstrates how to flash firmware to an STM32 microcontroller via UART using the built-in bootloader and `stm32flash`.  
-
-## **Flowchart of code execution**
-
-This program echoes bytes from keyboard to board and back to a serial monitor
-
-What happens when you send a charcater from the keyboard?
-
-## UART Character Reception Flow (PC → Board)
-
-| Step | Action | Details |
-|------|--------|---------|
-| 1 | Start | |
-| 2 | UART Initialized with DMA | |
-| 3 | DMA RX Channel 3 Configured | - CPAR = UART1->RDR (Peripheral: UART RX Register)<br>- CMAR = &rxByte (Memory: Variable to store data)<br>- CNDTR = 1 (Transfer 1 byte)<br>- Enable Transfer Complete Interrupt (TCIE)<br>- Enable DMA RX Channel |
-| 4 | Waiting for Data from PC | |
-| 5 | UART Receives Character | PC Sends a Character → UART RDR Register |
-| 6 | DMA Transfers Byte | DMA Automatically Moves Byte from UART RDR to rxByte in Memory |
-| 7 | DMA Triggers Interrupt | Transfer Complete Interrupt Triggered |
-| 8 | Interrupt Handler | - Jump to DMA1_Channel2_3_IRQHandler()<br>- Clear RX Transfer Complete Flag<br>- Set rxDone = true (Indicates Data is Available)<br>- Restart DMA RX Channel for Next Byte<br>- CNDTR Reset to 1<br>- Enable DMA RX Channel |
-| 9 | Main Loop Processing | - Detects uartDataAvailable()<br>- Reads rxByte<br>- Clears rxDone Flag |
-| 10 | Character Processing | Character is Ready for Processing (e.g., Echo) |
-| 11 | End | |
-
-
-## UART Character Echo Flow (Board → PC)
-
-| Step | Action | Details |
-|------|--------|---------|
-| 1 | Start | |
-| 2 | Main Loop Processing | - Detects uartDataAvailable()<br>- Calls uartRead()<br>- Retrieves rxByte<br>- Clears rxDone Flag |
-| 3 | Call uartStartTxDMA(rxByte) | - Waits for Previous TX Transfer to Complete<br>- Stores Byte in txByte |
-| 4 | DMA TX Channel 2 Configuration | - CPAR = UART1->TDR (Peripheral: UART TX Register)<br>- CMAR = &txByte (Memory: Variable to Send)<br>- CNDTR = 1 (Transfer 1 byte)<br>- Sets Direction = Memory to Peripheral<br>- Enables Transfer Complete Interrupt (TCIE)<br>- Enables DMA TX Channel |
-| 5 | DMA Transfer | DMA Transfers txByte to UART1->TDR |
-| 6 | DMA Triggers Interrupt | Transfer Complete Interrupt Triggered |
-| 7 | Interrupt Handler | - Jump to DMA1_Channel2_3_IRQHandler()<br>- Clears TX Transfer Complete Flag<br>- Sets txDone = true (Indicates TX is Complete) |
-| 8 | Character Sent | Character is Sent to PC Successfully |
-| 9 | End | |
-
-
---- 
-
-✅ **Key Features:**
-- **Bare-metal implementation** (no HAL, but used CMSIS library)
-- **DMA-based one-byte UART transmission & reception**
-- **Interrupt-driven approach** (efficient CPU usage)
-- **Minimal RAM footprint** (no large buffers)
-- **Non-blocking TX & RX** using **DMA transfer complete (TC) flags**
-- **Supports STM32F072RBT6 and similar Cortex-M0 MCUs**
+The implementation follows **bare-metal programming principles** using the **CMSIS** library for direct hardware control without relying on external HAL libraries.  
 
 ---
 
-## **Why Use DMA for UART?**
-Using **DMA (Direct Memory Access)** with UART eliminates the need for polling or interrupt-driven data handling, reducing CPU load and ensuring efficient data transfer.
+## **Technical Highlights**  
 
-| **Method**       | **CPU Overhead** | **Latency** | **Efficiency** | **Best Use Case** |
-|------------------|-----------------|-------------|---------------|----------------|
-| **Polling**       | High            | High        | ❌ Inefficient  | Simple applications |
-| **Interrupts**    | Medium          | Low         | ✅ Efficient    | General-purpose use |
-| **DMA**          | Very Low        | Very Low    | ✅✅ **Highly Efficient** | High-speed transfers |
+### **1. Fully Interrupt-Driven UART with DMA**  
+- **TX and RX operations are completely offloaded to DMA** to eliminate CPU intervention.  
+- **USART1 peripheral is configured with DMA mode enabled** for seamless data transfer.  
+- The **DMA interrupt (TCIE - Transfer Complete Interrupt) is used** to signal when a byte has been sent or received.  
+- **Circular mode is enabled for RX DMA**, allowing continuous reception without reinitialization.  
 
----
+### **2. Optimized Low-Power Design**  
+- The microcontroller **enters Sleep mode (WFI - Wait For Interrupt) when idle**, significantly reducing power consumption.  
+- The **Sleep-on-Exit (SCR register modification) ensures the CPU wakes only for relevant interrupts** and automatically returns to sleep afterward.  
+- DMA operation allows **peripherals to continue running independently of the CPU**, ensuring efficient data transfer while the system remains in low-power mode.  
 
-## **Implementation Details**
-### **1️⃣ UART Initialization (`uartInit`)**
-- Configures **TX and RX GPIO pins** as **alternate function**
-- Enables **USART1 peripheral clock**
-- Sets the **baud rate**
-- Enables **DMA mode for TX & RX**
-- Configures **DMA1 Channel 2** (TX) and **DMA1 Channel 3** (RX)
-- Enables **DMA interrupts** in NVIC
+### **3. Robust UART Error Handling**  
+- The **USART1 interrupt handles error conditions (Overrun, Framing, Noise, and Parity errors)** to maintain reliable communication.  
+- Error flags are cleared in the ISR to **prevent UART stalls or data corruption**.  
 
-```c
-void uartInit(USART_TypeDef *uart, unsigned long baud) {
-    RCC->APB2ENR |= BIT(14);  // Enable USART1 clock
-    RCC->AHBENR |= BIT(0);    // Enable DMA1 clock
+### **4. DMA Prioritization for Reliable Data Handling**  
+- **NVIC priorities are carefully assigned** to ensure **DMA interrupts (high priority) are processed before USART errors (lower priority).**  
+- This ensures **data integrity and uninterrupted communication**, even under high-speed operation.  
 
-    // Enable DMA mode in USART1 (DMAT for TX, DMAR for RX)
-    uart->CR3 |= BIT(7) | BIT(6);
-
-    // Setup DMA1_Channel3 (RX) to receive one byte
-    DMA1_Channel3->CPAR = (uint32_t)&UART1->RDR;
-    DMA1_Channel3->CMAR = (uint32_t)&rxByte;
-    DMA1_Channel3->CNDTR = 1;
-    DMA1_Channel3->CCR = BIT(1);  // Enable Transfer Complete Interrupt
-    DMA1_Channel3->CCR |= BIT(0); // Enable DMA Channel 3
-}
-```
+### **5. Minimal Resource Usage & CMSIS-Based Implementation**  
+- **No external libraries (except nano libc for `printf`) are used**, ensuring a **lightweight, efficient** implementation.  
+- **Register-level configuration using CMSIS** ensures **maximum control, portability, and performance**.  
 
 ---
 
-### **2️⃣ DMA-Based UART Transmission (`uartStartTxDMA`)**
-- Waits for the previous transfer to complete
-- Loads **txByte** with data
-- Configures **DMA1 Channel 2** for TX
-- Starts the transfer
-
-```c
-void uartStartTxDMA(uint8_t data) {
-    while (!txDone && (DMA1_Channel2->CCR & BIT(0))); // Wait for previous TX
-    txByte = data;  // Store new byte
-
-    // Setup DMA Channel 2 (TX)
-    DMA1_Channel2->CPAR = (uint32_t)&UART1->TDR;
-    DMA1_Channel2->CMAR = (uint32_t)&txByte;
-    DMA1_Channel2->CNDTR = 1;
-    DMA1_Channel2->CCR = BIT(4) | BIT(1);  // Enable memory-to-peripheral mode + TCIE
-    DMA1_Channel2->CCR |= BIT(0); // Start DMA transfer
-}
-```
+## **Why This Approach?**  
+| Feature | Traditional UART (Polling/Blocking) | This Project (UART with DMA) |  
+|---------|----------------------------------|------------------------------|  
+| **CPU Usage** | High (Polling blocks execution) | Minimal (DMA handles transfers) |  
+| **Power Efficiency** | Low (CPU remains active) | High (MCU sleeps between events) |  
+| **Interrupt Usage** | Only for error handling | Fully interrupt-driven |  
+| **Data Throughput** | Lower (CPU bottleneck) | Higher (DMA offloads CPU) |  
+| **Scalability** | Limited to single-task systems | Easily extendable for multi-tasking |  
 
 ---
 
-### **3️⃣ DMA Interrupt Handler (`DMA1_Channel2_3_IRQHandler`)**
-Handles **both TX and RX DMA transfer completion:**
-- **TX Complete:** Clears `txDone` flag
-- **RX Complete:** Clears `rxDone` flag, prepares next reception
+## **How It Works**  
+### **1. Initialization**  
+- USART1 is configured for **115200 baud, 8N1 format, and DMA-enabled TX/RX**.  
+- DMA1 Channel 3 (RX) and DMA1 Channel 2 (TX) are set up for **single-byte transfers**.  
 
-```c
-void DMA1_Channel2_3_IRQHandler(void) {
-    if (DMA1->ISR & BIT(5)) {  // TX Complete
-        DMA1->IFCR |= BIT(5);  // Clear flag
-        txDone = true;
-    }
+### **2. RX DMA Operation**  
+- The **USART1 RX DMA continuously listens for incoming data** and stores it in a buffer.  
+- **DMA automatically reloads (circular mode)** after each received byte, ensuring uninterrupted reception.  
 
-    if (DMA1->ISR & BIT(9)) {  // RX Complete
-        DMA1->IFCR |= BIT(9);  // Clear flag
-        rxDone = true;
+### **3. TX DMA Operation**  
+- On receiving a byte, the **DMA interrupt triggers an echo back** by copying the received byte into the TX buffer.  
+- The **TX DMA is enabled only when data needs to be sent**, ensuring power efficiency.  
 
-        // Re-enable RX DMA for next byte
-        DMA1_Channel3->CCR &= ~BIT(0);
-        DMA1_Channel3->CNDTR = 1;
-        DMA1_Channel3->CCR |= BIT(0);
-    }
-}
-```
+### **4. Sleep Mode Integration**  
+- The **MCU enters low-power mode (`WFI` instruction) whenever idle**.  
+- It **wakes up only when DMA or USART interrupts occur**, minimizing power consumption.
 
+## Leveraging Sleep Mode in STM32F072RBT6 for Enhanced Power Efficiency
+
+In my implementation, I have strategically utilized the STM32F072RBT6's Sleep mode to optimize power consumption during idle periods. Below is an overview of my approach:
+
+### 1. Enabling Sleep-on-Exit Feature
+
+I have configured the microcontroller to automatically enter Sleep mode upon exiting an interrupt service routine (ISR). This is achieved by setting the **SLEEPONEXIT** bit in the System Control Register (SCR). Activating this feature ensures that after an interrupt is serviced, the CPU returns to Sleep mode without executing additional instructions, thereby minimizing unnecessary CPU activity and reducing power consumption. 
+
+### 2. Implementing Wait-for-Interrupt in Main Loop
+
+In the main function, I have implemented an infinite loop that continuously executes the `WFI` (Wait For Interrupt) instruction. The `WFI` instruction places the CPU into Sleep mode until an interrupt occurs. This design ensures that the microcontroller remains in a low-power state during idle periods, waking up only to handle interrupts. Such a strategy is particularly beneficial in applications where the CPU is not required to run continuously, leading to significant energy savings.
+
+By integrating these techniques, my implementation demonstrates a sophisticated approach to power management, leveraging the STM32F072RBT6's low-power capabilities to enhance energy efficiency.
 ---
 
-## **Hardware Connections**
-| **STM32 Pin** | **Function** | **UART Signal** |
-|--------------|------------|----------------|
-| PA9          | TX         | USART1_TX      |
-| PA10         | RX         | USART1_RX      |
-
-✅ **DMA Channels Used:**
-- **Channel 2 → USART1 TX**
-- **Channel 3 → USART1 RX**
-
-  ![image](https://github.com/user-attachments/assets/9c17358e-e1a1-4546-a760-bbf4086706e9)
-
-From rm0091 reference manual it is observerd that USART1 TX is mapped to channel 2 and USART1 RX is mapped to channel 3
-
-![image](https://github.com/user-attachments/assets/94ecf7b0-2cdb-4589-b5bb-e50df1075f12)
-
-From SYSCFG configuration register 1 (SYSCFG_CFGR1) we see that we can remap USART1 TX RX to different channels but we will use it in default state.(channel 2 and 3).
-
-![image](https://github.com/user-attachments/assets/57bf429e-a92b-47cc-a1cd-b3d119bc6141)
-
-#### **DMA Block Diagram Explanation for STM32F072RBT6**  
-
-The **Direct Memory Access (DMA) controller** in the **STM32F072RBT6** is designed to transfer data between peripherals (e.g., USART, SPI, ADC) and memory **without CPU intervention**. This reduces CPU load, improves performance, and enables real-time data handling.  
-
-The **DMA block diagram** consists of:  
-- **DMA Controller (DMA1)**, which has **seven independent channels**, each capable of handling different peripheral requests.  
-- Each **DMA channel** connects to a specific peripheral (e.g., Channel 2 for USART1_TX, Channel 3 for USART1_RX).  
-- The **DMA request multiplexer** routes peripheral requests to the appropriate DMA channel.  
-- The **DMA controller includes a priority system**, allowing high-priority transfers to preempt lower-priority ones.  
-- Once a transfer completes, the **DMA interrupt flag is set**, triggering the **NVIC** (Nested Vectored Interrupt Controller) to notify the CPU, enabling efficient event-driven processing.  
-
-By configuring **memory-to-peripheral (TX) and peripheral-to-memory (RX) transfers**, the STM32F0 DMA module enables **low-latency, non-blocking communication**, making it ideal for applications such as **UART DMA-driven data streaming**.
-
+## **Future Improvements**  
+- **Buffering for multi-byte messages** instead of single-byte transactions.  
 ---
 
-## **Demo: How to Use**
-1️⃣ **Flash the firmware**
-```sh
-make jflash or make stflash
-```
-
-2️⃣ **Open Minicom (or any serial terminal)**
-```sh
-minicom -b 115200 -D /dev/ttyUSB0
-```
-
-3️⃣ **Send a byte, and see it echoed back!**
-```
-User Input  → 'A'
-Response    → 'A'
-```
-
----
-
-## **Technical Highlights**
-✔️ **Zero CPU overhead** (only IRQs execute briefly)  
-✔️ **DMA transfer completion flags prevent buffer overflows**  
-✔️ **Efficient single-byte handling (ideal for command-based protocols)**  
-✔️ **No while-loops blocking execution** (non-blocking approach)  
-✔️ **Optimized for minimal power consumption**  
-
----
-
-## **Potential Enhancements**
-🔹 **Support for variable-length packets** (not just single bytes)  
-🔹 **Add circular DMA mode for continuous reception**  
-🔹 **Implement a ring buffer for TX & RX**  
-🔹 **Use FreeRTOS for multitasking (if required)**  
-
----
-
-## **Conclusion**
-This **bare-metal DMA-based UART implementation** is a highly efficient way to handle UART communication on STM32F0 MCUs. The use of **DMA with TX & RX interrupts** ensures **non-blocking, low-latency** operation, making it ideal for real-time applications.
-
-🚀 **Want to Contribute?** Open a Pull Request or raise an Issue!  
-📧 **Questions?** Contact me via GitHub Discussions.
-
+This README presents your project in a professional and structured manner, highlighting the technical decisions that demonstrate **industry best practices, efficiency, and robustness**. 🚀
